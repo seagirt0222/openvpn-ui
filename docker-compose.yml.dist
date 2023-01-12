@@ -1,0 +1,92 @@
+version: '2'
+
+services:
+  app:
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "1194:1194"
+    environment:
+      # Web-application parameters
+      - APP_PATH=/var/www/html
+      - SCRIPTS_PATH=/var/www/html/scripts/auth-bash
+      - SCRIPTS_LOGIN=/var/www/html/scripts/auth-bash/login.sh
+      - SCRIPTS_CONNECT=/var/www/html/scripts/auth-bash/connect.sh
+      - SCRIPTS_DISCONNECT=/var/www/html/scripts/auth-bash/disconnect.sh
+      # Database parameters
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=openvpn-admin
+      - DB_USER=openvpn
+      - DB_PASS=openvpn_pass
+      # OpenVPN settings
+      - VPN_CONF=/etc/openvpn
+      - VPN_DEV=tun0
+      - VPN_LOCAL=
+      - VPN_LOCAL_PORT=1194
+      - VPN_REMOTE=openvpn.chinobot.com.cn
+      - VPN_REMOTE_PORT=9443
+      - VPN_USER=nobody
+      - VPN_GROUP=nogroup
+      - VPN_PROTO=tcp
+      - VPN_IF=eth0
+      # TODO: Rewrite this part to ipcalc
+      - VPN_SERVER="10.8.0.0 255.255.255.0"
+      - VPN_NET=10.8.0.0/24
+      # OpenVPN key parameters
+      - EASYRSA_KEY_SIZE=2048
+      - EASYRSA_CA_EXPIRE=3650
+      - EASYRSA_CERT_EXPIRE=3650
+      - EASYRSA_REQ_COUNTRY="CN"
+      - EASYRSA_REQ_PROVINCE="GuangDong"
+      - EASYRSA_REQ_CITY="Shenzhen"
+      - EASYRSA_REQ_ORG="Shenzhen Chinobot TECHNOLOGY CO LTD"
+      - EASYRSA_REQ_OU="Shenzhen Chinobot TECHNOLOGY CO LTD"
+      - EASYRSA_REQ_EMAIL=chinobot@chinobot.com.cn
+      - EASYRSA_REQ_CN=CHINOBOT
+      - EASYRSA_BATCH=true
+    build:
+      context: configs
+      args:
+        DEB_PHP: nginx php php-fpm php-mbstring php-mysql php-zip php-curl
+        DEB_OPENVPN: openvpn openvpn-auth-ldap openvpn-auth-radius mysql-client
+        DEB_OTHER: sed curl wget unzip iproute2 iptables
+    volumes:
+      - ./app:/var/www/html
+      - ./openvpn:/etc/openvpn
+      - ./logs/openvpn:/var/log/openvpn
+    links:
+      - "mysql:db"
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    volumes:
+      - ./configs/nginx.conf:/etc/nginx/conf.d/default.conf:delegated
+      - ./app:/var/www/html:delegated
+      - ./logs/nginx:/var/log/nginx
+    links:
+      - "app"
+
+  mysql:
+    image: mysql:5.7
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=openvpn-admin
+      - MYSQL_ROOT_PASSWORD=rootrootroot
+      - MYSQL_USER=openvpn
+      - MYSQL_PASSWORD=openvpn_pass
+    volumes:
+      - ./database:/var/lib/mysql
+      - ./logs/mysql:/var/log/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    ports:
+      - "8081:80"
+    links:
+      - "app"
+      - "mysql:db"
